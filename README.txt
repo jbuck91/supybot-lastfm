@@ -38,9 +38,7 @@ Varnish is used to cache last.fm calls.  Script uses localhost:6081 to connect t
 
 Varnish VCL:
 backend default {
-#  ws.audioscrobbler.com may resolve into muliple IPs which varnish doesnt like
-#    .host = "ws.audioscrobbler.com";
-     .host = "195.24.232.205";
+     .host = "ws.audioscrobbler.com";
      .port = "80";
 }
 

@@ -38,9 +38,9 @@ class DictDB(dict):
 
     def dump(self, file):
         if self.format == 'csv':
-            csv.writer(file).writerows(iter(self.items()))
+            csv.writer(file).writerows(self.iteritems())
         elif self.format == 'pickle':
-            pickle.dump(list(self.items()), file, -1)
+            pickle.dump(self.items(), file, -1)
         else:
             raise NotImplementedError('Unknown format: %r' % self.format)
 
@@ -50,8 +50,8 @@ class DictDB(dict):
             file.seek(0)
             try:
                 return self.update(loader(file))
-            except Exception as e:
-                print(e)
+            except Exception, e:
+                print e
                 pass
         raise ValueError('File not in recognized format')
 
@@ -64,10 +64,10 @@ def dbopen(filename, flag=None, mode=None, format=None):
 if __name__ == '__main__':
     import random
     s = dbopen('tmp.shl', 'c', format='pickle')
-    print((s, 'start'))
+    print(s, 'start')
     s['abc'] = '123'
     s['rand'] = random.randrange(10000)
     s.close()
     f = __builtins__.open('tmp.shl', 'rb')
-    print((f.read()))
+    print (f.read())
     f.close()
