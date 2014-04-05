@@ -1011,20 +1011,6 @@ def hostmask_clean(mask):
 def find_account(irc, msg, user=None):
 	account_coll = pymongo.Connection().anni.account
 
-	def try_legacy(nick):
-		acc = legacy_userdb.get(nick.lower(), None)
-		if not acc:
-			print("legacy not found user %s" % user)
-			return None
-		print("legacy using %s for %s" % (acc, user))
-		account_coll.update({'nick': nick.replace('.', '_').lower(), 'network': irc.network},
-							{'nick': [nick.replace('.', '_').lower(), ],
-							 'network': irc.network,
-							 'account': acc},
-							upsert=True, multi=False)
-		print("update %s on %s with %s: %s" % (nick, irc.network, acc, pymongo.Connection().anni.error()))
-		return acc
-
 	if user and user != msg.nick:
 		try:
 			print("find_account user: %s" % user)
@@ -1075,22 +1061,9 @@ def find_account(irc, msg, user=None):
 			print("update %s with host %s" % (item, host))
 		return User(item['account'])
 
-	#try legacy user db
-	acc = legacy_userdb.get(user.lower(), None)
-	if not acc:
-		print("legacy not found user %s" % user)
-		#if user == msg.nick:
-		print("legacy fallback using %s" % user)
-		return User(user)
-		return None
-	print("legacy found %s for %s" % (acc, user))
-	if caller_self:
-		account_coll.update({'nick': user.replace('.', '_').lower(),
-							 'network': irc.network},
-							{'nick': [user.replace('.', '_').lower()],
-							 'network': irc.network, 'host': host, 'account': acc},
-							upsert=True, multi=False)
-	return User(acc)
+	# welp
+	raise LastfmError("Unable to find user")
+	return None
 
 
 def doc_to_artist(doc):
