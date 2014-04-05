@@ -497,7 +497,8 @@ class Track(object):
 			url=track_elem.find('url').text,
 			stats=Stats(listeners=track_elem.find('listeners').text,
 			playcount=track_elem.find('playcount').text,
-			userplaycount=track_elem.find('userplaycount').text),
+			userplaycount=track_elem.find('userplaycount').text if track_elem.find('userplaycount') != None else '0'),
+			loved=track_elem.find('userloved').text,
 			duration=int(track_elem.find('duration').text or 0))
 
 	def getTopTags(self, autocorrect=1):
