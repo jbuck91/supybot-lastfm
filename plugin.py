@@ -1953,6 +1953,45 @@ class Lastfm(callbacks.Plugin):
 		self.reply(irc, out, None)
 	compare = wrap(compare, ['something', optional('something')])
 
+	def contrast(self, irc, msg, args, user1, user2):
+		"""<user1> [user2]
+		Contrasts user1 with user2 or requester
+		"""
+		ignore_tags = ["electronic", "experimental", "electronica", "seen live"]
+		if user2:
+			left, right = find_account(irc, msg, user1), find_account(irc, msg, user2)
+		else:
+			left, right = find_account(irc, msg), find_account(irc, msg, user1)
+
+		try:
+			taste = [taste_compare(left, left, limit=10), taste_compare(right, right, limit=10)]
+			tags = [defaultdict(lambda: 0), defaultdict(lambda: 0)]
+
+			only = [[], []]
+			for i in range(2):
+				for a in taste[i].artists:
+					match = taste_compare((right if i == 0 else left), a)
+					if len(match.artists) == 0:
+						only[i].append(a)
+
+			for i in range(2):
+				for a in only[i]:
+					for t in filter_tags(a.tags)[:5]:
+						if t.name not in ignore_tags:
+							tags[i][t.name] += 1
+				tags[i] = sorted(iter(tags[i].items()), key=operator.itemgetter(1), reverse=True)
+
+			for i in range(2):
+				out = "[%s.only]: %s feat. %s" % \
+					((left.name if i == 0 else right.name), \
+					 ', '.join(['%s' % t[0].decode('utf-8') for t in tags[i][:3] if tags[i]]), \
+					 ', '.join(["%s" % a.name for a in only[i]]) or 'nothing')
+				self.reply(irc, out, None)
+		except LastfmError as e:
+			self.reply(irc, error_msg(msg, e), None)
+	contrast = wrap(contrast, ['something', optional('something')])
+
+
 	def heard(self, irc, msg, args, account, artist):
 		"""<user> [artist]
 		Has user listened to artist or your currently playing artist
