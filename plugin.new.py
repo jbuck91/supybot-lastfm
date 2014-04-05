@@ -497,7 +497,8 @@ class Track(object):
 			url=track_elem.find('url').text,
 			stats=Stats(listeners=track_elem.find('listeners').text,
 			playcount=track_elem.find('playcount').text,
-			userplaycount=track_elem.find('userplaycount').text),
+			userplaycount=track_elem.find('userplaycount').text if track_elem.find('userplaycount') != None else '0'),
+			loved=track_elem.find('userloved').text,
 			duration=int(track_elem.find('duration').text or 0))
 
 	def getTopTags(self, autocorrect=1):
@@ -1011,19 +1012,19 @@ def hostmask_clean(mask):
 def find_account(irc, msg, user=None):
 	account_coll = pymongo.Connection().anni.account
 
-	def try_legacy(nick):
-		acc = legacy_userdb.get(nick.lower(), None)
-		if not acc:
-			print("legacy not found user %s" % user)
-			return None
-		print("legacy using %s for %s" % (acc, user))
-		account_coll.update({'nick': nick.replace('.', '_').lower(), 'network': irc.network},
-							{'nick': [nick.replace('.', '_').lower(), ],
-							 'network': irc.network,
-							 'account': acc},
-							upsert=True, multi=False)
-		print("update %s on %s with %s: %s" % (nick, irc.network, acc, pymongo.Connection().anni.error()))
-		return acc
+	# def try_legacy(nick):
+	#	 acc = legacy_userdb.get(nick.lower(), None)
+	#	 if not acc:
+	#		 print("legacy not found user %s" % user)
+	#		 return None
+	#	 print("legacy using %s for %s" % (acc, user))
+	#	 account_coll.update({'nick': nick.replace('.', '_').lower(), 'network': irc.network},
+	#						 {'nick': [nick.replace('.', '_').lower(), ],
+	#							'network': irc.network,
+	#							'account': acc},
+	#						 upsert=True, multi=False)
+	#	 print("update %s on %s with %s: %s" % (nick, irc.network, acc, pymongo.Connection().anni.error()))
+	#	 return acc
 
 	if user and user != msg.nick:
 		try:
@@ -1075,22 +1076,26 @@ def find_account(irc, msg, user=None):
 			print("update %s with host %s" % (item, host))
 		return User(item['account'])
 
-	#try legacy user db
-	acc = legacy_userdb.get(user.lower(), None)
-	if not acc:
-		print("legacy not found user %s" % user)
-		#if user == msg.nick:
-		print("legacy fallback using %s" % user)
-		return User(user)
-		return None
-	print("legacy found %s for %s" % (acc, user))
-	if caller_self:
-		account_coll.update({'nick': user.replace('.', '_').lower(),
-							 'network': irc.network},
-							{'nick': [user.replace('.', '_').lower()],
-							 'network': irc.network, 'host': host, 'account': acc},
-							upsert=True, multi=False)
-	return User(acc)
+	# #try legacy user db
+	# acc = legacy_userdb.get(user.lower(), None)
+	# if not acc:
+	#	 print("legacy not found user %s" % user)
+	#	 #if user == msg.nick:
+	#	 print("legacy fallback using %s" % user)
+	#	 return User(user)
+	#	 return None
+	# print("legacy found %s for %s" % (acc, user))
+	# if caller_self:
+	#	 account_coll.update({'nick': user.replace('.', '_').lower(),
+	#							'network': irc.network},
+	#						 {'nick': [user.replace('.', '_').lower()],
+	#							'network': irc.network, 'host': host, 'account': acc},
+	#						 upsert=True, multi=False)
+	# return User(acc)
+
+	# welp
+	raise LastfmError("Unable to find user")
+	return None
 
 
 def doc_to_artist(doc):
@@ -1857,6 +1862,7 @@ class Lastfm(callbacks.Plugin):
 		for user in users:
 			try:
 				account = find_account(irc, msg, user)
+				print(account)
 				track = account.getRecentTracks(limit=1)
 				track[0] = track[0].getInfo(account.name)
 
@@ -1978,6 +1984,45 @@ class Lastfm(callbacks.Plugin):
 			out = error_msg(msg, e)
 		self.reply(irc, out, None)
 	compare = wrap(compare, ['something', optional('something')])
+
+	def contrast(self, irc, msg, args, user1, user2):
+		"""<user1> [user2]
+		Contrasts user1 with user2 or requester
+		"""
+		ignore_tags = ["electronic", "experimental", "electronica", "seen live"]
+		if user2:
+			left, right = find_account(irc, msg, user1), find_account(irc, msg, user2)
+		else:
+			left, right = find_account(irc, msg), find_account(irc, msg, user1)
+
+		try:
+			taste = [taste_compare(left, left, limit=10), taste_compare(right, right, limit=10)]
+			tags = [defaultdict(lambda: 0), defaultdict(lambda: 0)]
+
+			only = [[], []]
+			for i in range(2):
+				for a in taste[i].artists:
+					match = taste_compare((right if i == 0 else left), a)
+					if len(match.artists) == 0:
+						only[i].append(a)
+
+			for i in range(2):
+				for a in only[i]:
+					for t in filter_tags(a.tags)[:5]:
+						if t.name not in ignore_tags:
+							tags[i][t.name] += 1
+				tags[i] = sorted(iter(tags[i].items()), key=operator.itemgetter(1), reverse=True)
+
+			for i in range(2):
+				out = "[%s.only]: %s feat. %s" % \
+					((left.name if i == 0 else right.name), \
+					 ', '.join(['%s' % t[0].decode('utf-8') for t in tags[i][:3] if tags[i]]), \
+					 ', '.join(["%s" % a.name for a in only[i]]) or 'nothing')
+				self.reply(irc, out, None)
+		except LastfmError as e:
+			self.reply(irc, error_msg(msg, e), None)
+	contrast = wrap(contrast, ['something', optional('something')])
+
 
 	def heard(self, irc, msg, args, account, artist):
 		"""<user> [artist]
